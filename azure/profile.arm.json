@@ -1,0 +1,165 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workflows_app_dio_serverless_name": {
+            "defaultValue": "app-dio-serverless",
+            "type": "String"
+        },
+        "connections_servicebus_2_externalid": {
+            "defaultValue": "/subscriptions/08fe782a-54e7-4e79-85f4-62d8417ef5a1/resourceGroups/DIO-SERVERLESS/providers/Microsoft.Web/connections/servicebus-2",
+            "type": "String"
+        },
+        "resourceGroupName": {
+            "type": "string",
+            "defaultValue": "DIO-SERVERLESS",
+            "metadata": {
+                "description": "Name of the resource group for the deployment."
+            }
+        },
+        "resourceGroupLocation": {
+            "type": "string",
+            "defaultValue": "westus",
+            "metadata": {
+                "description": "Location of the resource group."
+            }
+        },
+        "resourceName": {
+            "type": "string",
+            "defaultValue": "fn-save-database",
+            "metadata": {
+                "description": "Name of the function app."
+            }
+        },
+        "namespaces_sbfilaprocesso_name": {
+            "defaultValue": "sbfilaprocesso",
+            "type": "String"
+        },
+        "sqlServerName": {
+            "defaultValue": "meu-servidor-sql6",
+            "type": "String"
+        },
+        "sqlDatabaseName": {
+            "defaultValue": "ToDoDB",
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Sql/servers",
+            "apiVersion": "2021-02-01-preview",
+            "name": "[parameters('sqlServerName')]",
+            "location": "eastus",
+            "properties": {
+                "administratorLogin": "sqladmin",
+                "administratorLoginPassword": "YourSecurePassword123"
+            }
+        },
+        {
+            "type": "Microsoft.Sql/servers/databases",
+            "apiVersion": "2021-02-01-preview",
+            "name": "[concat(parameters('sqlServerName'), '/', parameters('sqlDatabaseName'))]",
+            "location": "eastus",
+            "properties": {
+                "collation": "SQL_Latin1_General_CP1_CI_AS",
+                "maxSizeBytes": "1073741824",
+                "sku": {
+                    "name": "S0",
+                    "tier": "Standard",
+                    "capacity": 10
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Sql/servers', parameters('sqlServerName'))]"
+            ]
+        },
+        {
+            "type": "Microsoft.ServiceBus/namespaces",
+            "apiVersion": "2024-01-01",
+            "name": "[parameters('namespaces_sbfilaprocesso_name')]",
+            "location": "[parameters('resourceGroupLocation')]",
+            "sku": {
+                "name": "Basic",
+                "tier": "Basic"
+            },
+            "properties": {
+                "premiumMessagingPartitions": 0,
+                "minimumTlsVersion": "1.2",
+                "publicNetworkAccess": "Enabled",
+                "disableLocalAuth": false,
+                "zoneRedundant": false
+            }
+        },
+        {
+            "type": "Microsoft.Web/connections",
+            "apiVersion": "2016-06-01",
+            "name": "servicebus-2",
+            "location": "[parameters('resourceGroupLocation')]",
+            "properties": {
+                "api": {
+                    "id": "/subscriptions/08fe782a-54e7-4e79-85f4-62d8417ef5a1/providers/Microsoft.Web/locations/[parameters('resourceGroupLocation')]/managedApis/servicebus"
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Logic/workflows",
+            "apiVersion": "2017-07-01",
+            "name": "[parameters('workflows_app_dio_serverless_name')]",
+            "location": "[parameters('resourceGroupLocation')]",
+            "properties": {
+                "state": "Enabled",
+                "definition": {
+                    "$schema": "https://schema.management.azure.com/providers/Microsoft.Logic/schemas/2016-06-01/workflowdefinition.json#",
+                    "contentVersion": "1.0.0.0",
+                    "parameters": {
+                        "$connections": {
+                            "defaultValue": {},
+                            "type": "Object"
+                        }
+                    },
+                    "triggers": {
+                        "When_a_HTTP_request_is_received": {
+                            "type": "Request",
+                            "kind": "Http",
+                            "inputs": {
+                                "method": "POST",
+                                "schema": {
+                                    "name": "",
+                                    "idade": 1
+                                }
+                            }
+                        }
+                    },
+                    "actions": {
+                        "Response": {
+                            "runAfter": {},
+                            "type": "Response",
+                            "kind": "Http",
+                            "inputs": {
+                                "statusCode": 200,
+                                "body": {
+                                    "message": "Logic app executed successfully"
+                                }
+                            }
+                        }
+                    },
+                    "outputs": {}
+                },
+                "parameters": {
+                    "$connections": {
+                        "value": {
+                            "servicebus-2": {
+                                "id": "/subscriptions/08fe782a-54e7-4e79-85f4-62d8417ef5a1/providers/Microsoft.Web/connections/servicebus-2",
+                                "connectionId": "[parameters('connections_servicebus_2_externalid')]",
+                                "connectionName": "servicebus-2"
+                            }
+                        }
+                    }
+                }
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/connections', 'servicebus-2')]"
+            ]
+        }
+    ]
+}
